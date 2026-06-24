@@ -11,14 +11,14 @@ pip install -e ".[dev]"   # includes pytest
 ## Commands
 
 ```bash
-# Run tests
+# Run all tests
 python -m pytest tests/ -v
+
+# Run a single test
+python -m pytest tests/test_core.py::test_parse_returns_pcmdata -v
 
 # Parse a single file (CLI)
 pcm-parser data/some_file.CSV
-
-# Legacy script shim (same behaviour)
-python parser.py data/some_file.CSV
 
 # Batch-convert all files in data/ into one CSV
 python scripts/convert_all.py
@@ -52,9 +52,23 @@ PCM files from UMC fab have a fixed 3-line header before data rows:
 - **Line 1**: `key:value` pairs — `TYPE NO`, `PCM SPEC`, `LOT ID`, `DATE`
 - **Line 2**: `key:value` pairs — `ITEM`, `TOTAL`, `PASS`, `TRANSFER`
 - **Line 3**: Column headers — `LOT, WF#, S#, <test_name_1>, <test_name_2>, ...`
-- **Lines 4+**: Data rows plus aggregate rows (`<MAX>`, `<MIN>`, `<AVG>`, `<STD>`) and mandatory spec-limit rows (`<SPEC HIGH>`, `<SPEC LOW>`)
+- **Lines 4+**: Data rows plus aggregate rows and mandatory spec-limit rows
 
-Aggregate rows are silently skipped. Spec-limit rows are extracted into `PCMData.spec_high` / `spec_low`.
+Files are opened with `utf-8-sig` encoding to silently strip the BOM that Excel-exported CSVs carry.
+
+### Row classification (parser.py)
+
+Every row after line 3 is classified by its first cell value (`row[0].strip()`):
+
+| First cell | Action |
+|---|---|
+| empty | skip |
+| `<MAX>`, `<MIN>`, `<AVG>`, `<STD>` | skip (aggregate summary rows) |
+| `<SPEC HIGH>` | capture cells 4+ as upper spec limits |
+| `<SPEC LOW>` | capture cells 4+ as lower spec limits |
+| anything else | append to `data_rows` as a die-site measurement |
+
+Both `<SPEC HIGH>` and `<SPEC LOW>` must be present or `MissingFooterError` is raised.
 
 ## Output format (long-format CSV)
 
@@ -62,29 +76,22 @@ Each die-site row × each test parameter becomes one output row:
 
 | LOT | WF# | S# | TEST_NAME | TEST_RESULTS | SPEC_HIGH | SPEC_LOW | ...metadata cols... |
 
-Metadata column names are normalized: trimmed, spaces→underscores, uppercased.
+Metadata column names are normalized via `_col_name()`: trimmed, spaces→underscores, uppercased. `meta` dict keys keep their original form (e.g. `"LOT ID"`); normalization only happens in `records()` when building output column names.
 
-## Package structure
-
-```
-src/pcm_parser/
-    __init__.py   # re-exports: parse, PCMData, MissingMetadataError, MissingFooterError
-    api.py        # parse() public function — thin wrapper, full docstring
-    model.py      # PCMData dataclass (records(), write_csv()) + exception classes
-    parser.py     # _parse() implementation — file I/O and row classification
-    utils.py      # internal helpers: _parse_metadata_line, _col_name, constants
-    cli.py        # argparse CLI entry point
-scripts/
-    convert_all.py
-tests/
-    conftest.py   # valid_csv fixture (synthetic PCM content, no real files needed)
-    test_core.py  # 20 tests covering parse(), records(), write_csv()
-pyproject.toml
-parser.py         # root shim → pcm_parser.cli:main
-```
+## Architecture
 
 ### Dependency order (no circular imports)
 
 ```
 utils.py → model.py → parser.py → api.py → __init__.py
 ```
+
+- **`utils.py`** — constants (`_SKIP_PREFIXES`, required field sets) and pure helpers (`_parse_metadata_line`, `_col_name`)
+- **`model.py`** — `PCMData` dataclass with `records()` and `write_csv()`; exception classes
+- **`parser.py`** — `_parse()`: file I/O, row classification, builds `PCMData`
+- **`api.py`** — `parse()`: public thin wrapper around `_parse()` with full docstring
+- **`cli.py`** — argparse entry point; calls `parse()` and `write_csv()`
+
+### Tests
+
+`tests/conftest.py` provides the `valid_csv` fixture — a synthetic PCM file written to `tmp_path`. No real data files are needed to run tests.
