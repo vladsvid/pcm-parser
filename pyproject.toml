@@ -8,6 +8,9 @@ version = "0.1.0"
 requires-python = ">=3.10"
 description = "Parse UMC PCM CSV files into long-format CSV"
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [project.scripts]
 pcm-parser = "pcm_parser.cli:main"
 

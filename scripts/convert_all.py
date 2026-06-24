@@ -18,7 +18,7 @@ def main() -> None:
     if not files:
         sys.exit(f"No CSV files found in {DATA_DIR}/")
 
-    all_records: list[dict] = []
+    all_records: list[dict[str, str]] = []
     fieldnames: list[str] = []
     seen_fields: set[str] = set()
 

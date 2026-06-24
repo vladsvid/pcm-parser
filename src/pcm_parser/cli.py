@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .core import MissingFooterError, MissingMetadataError, parse
+from .api import MissingFooterError, MissingMetadataError, parse
 
 _DEFAULT_INPUT = "UMCFAB8C_IME_PCM_0310_NPO-G1-REVC_DP8WJ.1_X.CSV"
 
