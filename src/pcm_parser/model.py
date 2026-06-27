@@ -35,9 +35,9 @@ class PCMData:
         test_names: Ordered list of test parameter names as they appear in
             the column header (line 3), e.g. ``["VTON10/.18", "IDSN10/.18"]``.
         spec_high: Upper specification limits mapped by test name.
-            Tests with no limit value in the file are mapped to ``""``.
+            Tests with no limit value in the file are mapped to ``None``.
         spec_low: Lower specification limits mapped by test name.
-            Tests with no limit value in the file are mapped to ``""``.
+            Tests with no limit value in the file are mapped to ``None``.
         data_rows: Raw die-site rows from the file. Each row is a list of
             strings: ``[lot, wafer, site, val_0, val_1, ...]``.
             Aggregate rows (``<MAX>``, ``<MIN>``, ``<AVG>``, ``<STD>``) are
@@ -46,8 +46,8 @@ class PCMData:
 
     meta: dict[str, str]
     test_names: list[str]
-    spec_high: dict[str, str]
-    spec_low: dict[str, str]
+    spec_high: dict[str, str | None]
+    spec_low: dict[str, str | None]
     data_rows: list[list[str]]
 
     def records(self) -> list[dict[str, str]]:

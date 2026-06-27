@@ -10,7 +10,9 @@ from .utils import (
     _SKIP_PREFIXES,
     _SPEC_HIGH_PREFIX,
     _SPEC_LOW_PREFIX,
+    _norm_spec,
     _parse_metadata_line,
+    _strip_pcs,
 )
 
 
@@ -23,6 +25,9 @@ def _parse(input_path: Path) -> PCMData:
 
     meta1 = _parse_metadata_line(lines[0])
     meta2 = _parse_metadata_line(lines[1])
+    for key in ("TOTAL", "PASS", "TRANSFER"):
+        if key in meta2:
+            meta2[key] = _strip_pcs(meta2[key])
 
     missing = (_META1_REQUIRED - meta1.keys()) | (_META2_REQUIRED - meta2.keys())
     if missing:
@@ -55,8 +60,8 @@ def _parse(input_path: Path) -> PCMData:
         raise MissingFooterError("No <SPEC LOW> row found in file")
 
     n = len(test_names)
-    spec_high = dict(zip(test_names, spec_high_raw + [""] * (n - len(spec_high_raw))))
-    spec_low = dict(zip(test_names, spec_low_raw + [""] * (n - len(spec_low_raw))))
+    spec_high = {k: _norm_spec(v) for k, v in zip(test_names, spec_high_raw + [""] * (n - len(spec_high_raw)))}
+    spec_low = {k: _norm_spec(v) for k, v in zip(test_names, spec_low_raw + [""] * (n - len(spec_low_raw)))}
 
     return PCMData(
         meta={**meta1, **meta2},

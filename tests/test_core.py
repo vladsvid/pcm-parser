@@ -32,6 +32,27 @@ def test_parse_spec_low(valid_csv):
     assert parse(valid_csv).spec_low == {"TEST_A": "0.5", "TEST_B": "1.5"}
 
 
+def test_parse_pcs_fields_are_numeric_strings(valid_csv):
+    meta = parse(valid_csv).meta
+    assert meta["TOTAL"] == "2"
+    assert meta["PASS"] == "2"
+    assert meta["TRANSFER"] == "2"
+
+
+def test_parse_pcs_fallback_leaves_value_unchanged(tmp_path):
+    p = tmp_path / "no_pcs.CSV"
+    p.write_text(
+        "TYPE NO:X,PCM SPEC:S,LOT ID:L,DATE:2026-01-01\n"
+        "ITEM:1,TOTAL:99,PASS:99,TRANSFER:99\n"
+        "LOT,WF#,S#,TEST_A\n"
+        "<SPEC HIGH>,,,1.5\n"
+        "<SPEC LOW>,,,0.5\n",
+        encoding="utf-8",
+    )
+    meta = parse(p).meta
+    assert meta["TOTAL"] == "99"
+
+
 def test_parse_skips_aggregate_rows(valid_csv):
     # MAX/MIN/AVG/STD rows must not appear in data_rows
     assert len(parse(valid_csv).data_rows) == 2
@@ -99,6 +120,41 @@ def test_parse_missing_spec_low_raises(tmp_path):
     )
     with pytest.raises(MissingFooterError, match="SPEC LOW"):
         parse(p)
+
+
+def test_parse_spec_none_becomes_none(tmp_path):
+    p = tmp_path / "none_spec.CSV"
+    p.write_text(
+        "TYPE NO:X,PCM SPEC:S,LOT ID:L,DATE:2026-01-01\n"
+        "ITEM:1,TOTAL:1 PCS,PASS:1 PCS,TRANSFER:1 PCS\n"
+        "LOT,WF#,S#,TEST_A,TEST_B\n"
+        "L,01,T,1.0,2.0\n"
+        "<SPEC HIGH>,,,1.5,NONE\n"
+        "<SPEC LOW>,,,NONE,1.5\n",
+        encoding="utf-8",
+    )
+    data = parse(p)
+    assert data.spec_high["TEST_B"] is None
+    assert data.spec_low["TEST_A"] is None
+    assert data.spec_high["TEST_A"] == "1.5"
+
+
+def test_parse_spec_none_writes_empty_cell(tmp_path):
+    p = tmp_path / "none_spec.CSV"
+    p.write_text(
+        "TYPE NO:X,PCM SPEC:S,LOT ID:L,DATE:2026-01-01\n"
+        "ITEM:1,TOTAL:1 PCS,PASS:1 PCS,TRANSFER:1 PCS\n"
+        "LOT,WF#,S#,TEST_A\n"
+        "L,01,T,1.0\n"
+        "<SPEC HIGH>,,,NONE\n"
+        "<SPEC LOW>,,,0.5\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "out.csv"
+    parse(p).write_csv(out)
+    with out.open(encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    assert rows[1][5] == ""   # SPEC_HIGH cell is blank, not "NONE" or "None"
 
 
 # ---------------------------------------------------------------------------
